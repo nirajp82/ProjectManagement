@@ -1,6 +1,8 @@
 import sqlite3
 from typing import Generator, Iterable, Literal
 
+import bcrypt
+
 from app.config import DEFAULT_BOARD_TITLE, INITIAL_COLUMNS, get_db_path
 
 VALID_TABLES = {"cards", "columns"}
@@ -110,6 +112,26 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_card_labels_label_id ON card_labels(label_id)")
     conn.commit()
     conn.close()
+
+
+def seed_default_user() -> None:
+    """Ensure the default 'user' account exists with seed board data."""
+    conn = connect_db()
+    try:
+        existing = conn.execute("SELECT id FROM users WHERE username = 'user'").fetchone()
+        if existing:
+            user_id = int(existing["id"])
+        else:
+            password_hash = bcrypt.hashpw(b"password", bcrypt.gensalt()).decode("utf-8")
+            cursor = conn.execute(
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                ("user", password_hash),
+            )
+            conn.commit()
+            user_id = int(cursor.lastrowid)
+        ensure_seed_data(conn, user_id)
+    finally:
+        conn.close()
 
 
 def get_or_create_user(conn: sqlite3.Connection, username: str) -> int:

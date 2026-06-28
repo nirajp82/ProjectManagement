@@ -43,6 +43,7 @@ export type BoardListResponse = {
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const DEFAULT_TIMEOUT = 30000;
+const CHAT_TIMEOUT = 90000;
 
 // Module-level token — set once after login, cleared on logout.
 // Tokens are stored in localStorage (see page.tsx); this is the known
@@ -57,9 +58,10 @@ const apiFetch = async <T>(
     path: string,
     options: RequestInit = {},
     legacyUsername?: string,
+    timeout: number = DEFAULT_TIMEOUT,
 ): Promise<T> => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
         const headers = new Headers(options.headers);
@@ -202,8 +204,9 @@ export const sendChat = (payload: {
     message: string;
     history: ChatMessage[];
     apply_updates: boolean;
+    model?: string;
 }) =>
     apiFetch<ChatResponse>("/api/chat", {
         method: "POST",
         body: JSON.stringify(payload),
-    });
+    }, undefined, CHAT_TIMEOUT);

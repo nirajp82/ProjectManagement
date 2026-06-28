@@ -1,4 +1,5 @@
 import json
+import logging
 import sqlite3
 
 import httpx
@@ -41,19 +42,22 @@ def parse_structured_output(content: str) -> StructuredChatOutput:
     return StructuredChatOutput.model_validate(data)
 
 
-def call_openrouter(messages: list[dict[str, str]]) -> tuple[str, str | None]:
+def call_openrouter(messages: list[dict[str, str]], model_override: str | None = None) -> tuple[str, str | None]:
     api_key = get_openrouter_api_key()
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not configured")
 
+    effective_model = model_override or OPENROUTER_MODEL
     payload = {
-        "model": OPENROUTER_MODEL,
+        "model": effective_model,
         "messages": messages,
         "temperature": OPENROUTER_TEMPERATURE,
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-Title": "ProjectManagement",
     }
 
     try:
@@ -61,13 +65,24 @@ def call_openrouter(messages: list[dict[str, str]]) -> tuple[str, str | None]:
             f"{OPENROUTER_BASE_URL}/chat/completions",
             json=payload,
             headers=headers,
-            timeout=20,
+            timeout=30,
         )
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail="OpenRouter request failed") from exc
 
+    if response.status_code == 429:
+        retry_after = 10
+        try:
+            meta = response.json().get("error", {}).get("metadata", {})
+            retry_after = max(1, min(int(float(meta.get("retry_after_seconds", 10))) + 1, 30))
+        except Exception:
+            pass
+        logging.warning("OpenRouter 429 retry_after=%ds: %s", retry_after, response.text[:200])
+        raise HTTPException(status_code=429, detail={"message": "rate_limited", "retry_after": retry_after})
+
     if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="OpenRouter returned an error")
+        logging.error("OpenRouter error %s: %s", response.status_code, response.text[:500])
+        raise HTTPException(status_code=502, detail=f"OpenRouter error {response.status_code}: {response.text[:200]}")
 
     data = response.json()
     choices = data.get("choices", [])

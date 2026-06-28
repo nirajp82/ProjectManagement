@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { ChatMessage } from "@/lib/api";
 
 const SendIcon = () => (
@@ -25,11 +25,39 @@ const SparklesIcon = () => (
   </svg>
 );
 
+const FREE_MODELS = [
+  { id: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B (OpenAI)" },
+  { id: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B (OpenAI)" },
+  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B (Meta)" },
+  { id: "meta-llama/llama-3.2-3b-instruct:free", label: "Llama 3.2 3B (Meta)" },
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron Super 120B (NVIDIA)" },
+  { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder" },
+  { id: "nousresearch/hermes-3-llama-3.1-405b:free", label: "Hermes 3 405B" },
+];
+
+const MODEL_STORAGE_KEY = "pm_chat_model";
+const DEFAULT_MODEL = FREE_MODELS[0].id;
+
+function getStoredModel(): { preset: string; custom: string } {
+  if (typeof window === "undefined") return { preset: DEFAULT_MODEL, custom: "" };
+  const stored = localStorage.getItem(MODEL_STORAGE_KEY);
+  if (!stored) return { preset: DEFAULT_MODEL, custom: "" };
+  const isPreset = FREE_MODELS.some((m) => m.id === stored);
+  return isPreset ? { preset: stored, custom: "" } : { preset: "other", custom: stored };
+}
+
+export type RetryStatus = {
+  attempt: number;
+  maxAttempts: number;
+  countdown: number;
+} | null;
+
 type ChatSidebarProps = {
   messages: ChatMessage[];
-  onSend: (message: string) => void;
+  onSend: (message: string, model: string) => void;
   isSending?: boolean;
   error?: string | null;
+  retryStatus?: RetryStatus;
 };
 
 export const ChatSidebar = ({
@@ -37,8 +65,34 @@ export const ChatSidebar = ({
   onSend,
   isSending = false,
   error,
+  retryStatus,
 }: ChatSidebarProps) => {
   const [message, setMessage] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState<string>(DEFAULT_MODEL);
+  const [customModel, setCustomModel] = useState<string>("");
+
+  useEffect(() => {
+    const stored = getStoredModel();
+    setSelectedPreset(stored.preset);
+    setCustomModel(stored.custom);
+  }, []);
+
+  const effectiveModel =
+    selectedPreset === "other" ? customModel.trim() || DEFAULT_MODEL : selectedPreset;
+
+  const handlePresetChange = (value: string) => {
+    setSelectedPreset(value);
+    if (value !== "other") {
+      localStorage.setItem(MODEL_STORAGE_KEY, value);
+    }
+  };
+
+  const handleCustomModelBlur = () => {
+    const trimmed = customModel.trim();
+    if (trimmed) {
+      localStorage.setItem(MODEL_STORAGE_KEY, trimmed);
+    }
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,7 +100,7 @@ export const ChatSidebar = ({
     if (!trimmed || isSending) {
       return;
     }
-    onSend(trimmed);
+    onSend(trimmed, effectiveModel);
     setMessage("");
   };
 
@@ -70,6 +124,34 @@ export const ChatSidebar = ({
           <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
           Online
         </div>
+      </div>
+
+      <div className="border-b border-[var(--stroke)] bg-[var(--surface)] px-4 py-2.5">
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--gray-text)]">
+          Model
+        </label>
+        <select
+          value={selectedPreset}
+          onChange={(e) => handlePresetChange(e.target.value)}
+          className="w-full rounded-lg border border-[var(--stroke)] bg-white px-2 py-1.5 text-[11px] text-[var(--navy-dark)] outline-none transition focus:border-[var(--primary-blue)]"
+        >
+          {FREE_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+          <option value="other">Other (enter model ID)...</option>
+        </select>
+        {selectedPreset === "other" && (
+          <input
+            type="text"
+            value={customModel}
+            onChange={(e) => setCustomModel(e.target.value)}
+            onBlur={handleCustomModelBlur}
+            placeholder="e.g. openai/gpt-4o-mini"
+            className="mt-2 w-full rounded-lg border border-[var(--stroke)] bg-white px-2 py-1.5 text-[11px] text-[var(--navy-dark)] outline-none transition placeholder:text-[var(--gray-text)] focus:border-[var(--primary-blue)]"
+          />
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto bg-[var(--surface)] p-3">
@@ -98,7 +180,14 @@ export const ChatSidebar = ({
         )}
       </div>
 
-      {error ? (
+      {retryStatus ? (
+        <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-700">
+          <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-amber-300 border-t-amber-600" />
+          {retryStatus.countdown > 0
+            ? `Rate limited — retrying in ${retryStatus.countdown}s (attempt ${retryStatus.attempt} of ${retryStatus.maxAttempts})`
+            : `Retrying… (attempt ${retryStatus.attempt} of ${retryStatus.maxAttempts})`}
+        </div>
+      ) : error ? (
         <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-[10px] font-medium text-red-600">
           {error}
         </p>

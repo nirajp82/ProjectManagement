@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
-import { ChatSidebar } from "@/components/ChatSidebar";
+import { ChatSidebar, type RetryStatus } from "@/components/ChatSidebar";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import {
   fetchBoardById,
@@ -78,6 +78,7 @@ export default function Home() {
   const [boardError, setBoardError] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [chatRetryStatus, setChatRetryStatus] = useState<RetryStatus>(null);
   const [isChatSending, setIsChatSending] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
 
@@ -405,37 +406,80 @@ export default function Home() {
     }
   };
 
-  const handleSendChat = async (message: string) => {
+  const handleSendChat = async (message: string, model?: string) => {
     setChatError(null);
+    setChatRetryStatus(null);
     setIsChatSending(true);
     const userMessage: ChatMessage = { role: "user", content: message };
     const history = [...chatMessages];
     setChatMessages((prev) => [...prev, userMessage]);
 
-    try {
-      const response = await sendChat({
-        message,
-        history,
-        apply_updates: true,
-      });
-      const assistantMessage: ChatMessage = {
-        role: "assistant",
-        content: response.response,
-      };
-      setChatMessages((prev) => [...prev, assistantMessage]);
-      if (response.board) {
-        setBoard(toBoardData(response.board));
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await sendChat({
+          message,
+          history,
+          apply_updates: true,
+          model: model || undefined,
+        });
+        setChatRetryStatus(null);
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: response.response },
+        ]);
+        if (response.board) {
+          setBoard(toBoardData(response.board));
+        }
+        setIsChatSending(false);
+        return;
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") console.error(err);
+
+        if (err instanceof Error && err.message.startsWith("429")) {
+          if (attempt < maxAttempts) {
+            let retryAfter = 10;
+            try {
+              const body = JSON.parse(err.message.slice(4).trim());
+              retryAfter = Math.max(1, Math.min(body.detail?.retry_after ?? 10, 30));
+            } catch {}
+            for (let t = retryAfter; t > 0; t--) {
+              setChatRetryStatus({ attempt, maxAttempts, countdown: t });
+              await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+            }
+            setChatRetryStatus({ attempt, maxAttempts, countdown: 0 });
+            continue;
+          }
+          setChatRetryStatus(null);
+          setChatError("Model is rate-limited. Try a different model from the dropdown.");
+        } else {
+          setChatRetryStatus(null);
+          let chatErrMsg = "Unable to reach the assistant right now.";
+          if (err instanceof Error) {
+            if (err.message.includes("404")) {
+              chatErrMsg = "Model not found. Try a different model from the dropdown.";
+            } else if (err.message.includes("500")) {
+              chatErrMsg = "Server error. Check that OPENROUTER_API_KEY is configured.";
+            } else if (err.message.includes("502") || err.message.includes("503")) {
+              chatErrMsg = "AI provider is temporarily unavailable. Try a different model.";
+            } else if (err.name === "AbortError") {
+              chatErrMsg = "Request timed out. The model may be slow — try again.";
+            }
+          }
+          setChatError(chatErrMsg);
+        }
+
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Something went wrong. Please try again." },
+        ]);
+        break;
       }
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") console.error(err);
-      setChatError("Unable to reach the assistant right now.");
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Something went wrong. Please try again." },
-      ]);
-    } finally {
-      setIsChatSending(false);
     }
+
+    setChatRetryStatus(null);
+    setIsChatSending(false);
   };
 
   // Show loading spinner on initial mount
@@ -679,9 +723,10 @@ export default function Home() {
         sidebar={(
           <ChatSidebar
             messages={chatMessages}
-            onSend={handleSendChat}
+            onSend={(msg, model) => handleSendChat(msg, model)}
             isSending={isChatSending}
             error={chatError}
+            retryStatus={chatRetryStatus}
           />
         )}
       />

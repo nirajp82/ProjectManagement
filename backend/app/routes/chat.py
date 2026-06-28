@@ -19,7 +19,7 @@ def chat(
     user_id = get_or_create_user(conn, username)
     board = fetch_board(conn, user_id)
     messages = build_structured_messages(board, payload.history, payload.message)
-    content, model = call_openrouter(messages)
+    content, model = call_openrouter(messages, payload.model)
     structured = parse_structured_output(content)
 
     if payload.apply_updates and structured.actions:

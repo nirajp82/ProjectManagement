@@ -97,6 +97,7 @@ class ChatRequest(BaseModel):
     message: str
     history: list[ChatHistoryItem] = Field(default_factory=list)
     apply_updates: bool = True
+    model: str | None = None
 
 
 class ChatResponse(BaseModel):

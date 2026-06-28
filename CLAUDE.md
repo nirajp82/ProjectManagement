@@ -4,6 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+### Rebuild and run (after any code change)
+Always rebuild the Docker image after changing backend or frontend code:
+```
+# Windows (PowerShell) — rebuild image, replace running container
+docker build -t pm-app .
+docker rm -f pm-app
+docker run -d --name pm-app --env-file .env -p 8000:8000 pm-app
+```
+App is served at http://localhost:8000. The container runs detached (`-d`); use `docker logs pm-app` to inspect output.
+
 ### Run the app (Docker)
 ```
 # Windows
@@ -16,8 +26,9 @@ scripts/start-mac.sh
 scripts/start-linux.sh
 ```
 Backend and frontend are served at http://localhost:8000.
+Note: `start-windows.ps1` rebuilds the image and runs the container in foreground (attached) mode — the terminal will show live logs and appear "hung". That is normal. Press Ctrl+C to stop.
 
-For live integration/E2E tests, start the container in detached mode first:
+For detached mode (background):
 ```
 docker build -t pm-app .
 docker rm -f pm-app; docker run -d --name pm-app --env-file .env -p 8000:8000 pm-app
@@ -67,8 +78,14 @@ Next.js 16 frontend → static export → served by FastAPI at `/`. All API rout
 ### Authentication
 JWT tokens (24h expiry, HS256) via `Authorization: Bearer`. The `get_authenticated_user` dependency in `backend/app/dependencies.py` validates tokens on every protected route. Passwords are bcrypt-hashed. `JWT_SECRET` is auto-generated per process if not set in `.env` — meaning restarts log everyone out unless `JWT_SECRET` is pinned.
 
+### Default user
+On first startup, `seed_default_user()` in `database.py` creates a built-in account (username `user`, password `password`) with a seeded board. This runs idempotently on every container start.
+
+### AI model selection
+The AI model can be selected per-request from the ChatSidebar dropdown. Preset free OpenRouter models are listed; "Other" lets the user type any model ID. The selection is persisted in `localStorage`. The backend falls back to `OPENROUTER_MODEL` env var if no model is provided by the client.
+
 ### Backend layout
-- `app/main.py` — FastAPI app, lifespan hook (calls `init_db()`), static file mounting
+- `app/main.py` — FastAPI app, lifespan hook (calls `init_db()` then `seed_default_user()`), static file mounting
 - `app/config.py` — env vars, OpenRouter settings, seed board data
 - `app/database.py` — all SQL: schema init, migrations (try/except `ALTER TABLE`), every query
 - `app/models.py` — Pydantic models for requests, responses, and AI action types
