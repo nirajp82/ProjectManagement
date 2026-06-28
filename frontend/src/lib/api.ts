@@ -8,11 +8,6 @@ type BoardResponse = {
     labels?: Record<string, Label>;
 };
 
-type ApiOptions = {
-    token?: string;
-    username?: string; // Legacy support
-};
-
 export type ChatMessage = {
     role: "user" | "assistant";
     content: string;
@@ -49,10 +44,19 @@ export type BoardListResponse = {
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const DEFAULT_TIMEOUT = 30000;
 
+// Module-level token — set once after login, cleared on logout.
+// Tokens are stored in localStorage (see page.tsx); this is the known
+// trade-off vs httpOnly cookies for an SPA. Acceptable for this MVP.
+let _token: string | undefined;
+
+export const setApiToken = (token: string | undefined): void => {
+    _token = token;
+};
+
 const apiFetch = async <T>(
     path: string,
     options: RequestInit = {},
-    apiOptions: ApiOptions = {}
+    legacyUsername?: string,
 ): Promise<T> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
@@ -60,11 +64,10 @@ const apiFetch = async <T>(
     try {
         const headers = new Headers(options.headers);
         headers.set("Content-Type", "application/json");
-        if (apiOptions.token) {
-            headers.set("Authorization", `Bearer ${apiOptions.token}`);
-        } else if (apiOptions.username) {
-            // Legacy fallback
-            headers.set("X-User", apiOptions.username);
+        if (_token) {
+            headers.set("Authorization", `Bearer ${_token}`);
+        } else if (legacyUsername) {
+            headers.set("X-User", legacyUsername);
         }
 
         const response = await fetch(`${apiBase}${path}`, {
@@ -75,7 +78,7 @@ const apiFetch = async <T>(
 
         if (!response.ok) {
             const message = await response.text();
-            throw new Error(message || "Request failed");
+            throw new Error(`${response.status}: ${message || "Request failed"}`);
         }
 
         if (response.status === 204) {
@@ -123,40 +126,35 @@ export const login = (username: string, password: string) =>
     });
 
 // Board management endpoints
-export const listBoards = (token?: string) =>
-    apiFetch<BoardListResponse>("/api/boards", {}, { token });
+export const listBoards = () =>
+    apiFetch<BoardListResponse>("/api/boards");
 
-export const createBoard = (title: string, withDefaultColumns: boolean = true, token?: string) =>
+export const createBoard = (title: string, withDefaultColumns: boolean = true) =>
     apiFetch<{ id: string }>("/api/boards", {
         method: "POST",
         body: JSON.stringify({ title, with_default_columns: withDefaultColumns }),
-    }, { token });
+    });
 
-export const fetchBoardById = (boardId: string, token?: string) =>
-    apiFetch<BoardResponse>(`/api/boards/${boardId}`, {}, { token });
+export const fetchBoardById = (boardId: string) =>
+    apiFetch<BoardResponse>(`/api/boards/${boardId}`);
 
-export const updateBoardTitle = (boardId: string, title: string, token?: string) =>
+export const updateBoardTitle = (boardId: string, title: string) =>
     apiFetch(`/api/boards/${boardId}`, {
         method: "PATCH",
         body: JSON.stringify({ title }),
-    }, { token });
+    });
 
-export const deleteBoard = (boardId: string, token?: string) =>
-    apiFetch(`/api/boards/${boardId}`, { method: "DELETE" }, { token });
-
-// Legacy board endpoint (returns default board)
-export const fetchBoard = (token?: string) =>
-    apiFetch<BoardResponse>("/api/board", {}, { token });
+export const deleteBoard = (boardId: string) =>
+    apiFetch(`/api/boards/${boardId}`, { method: "DELETE" });
 
 export const updateColumn = (
     columnId: number,
     payload: { title?: string; position?: number },
-    token?: string
 ) =>
     apiFetch(`/api/columns/${columnId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
-    }, { token });
+    });
 
 export const createCard = (
     payload: {
@@ -167,14 +165,13 @@ export const createCard = (
         due_date?: string | null;
         priority?: Priority;
     },
-    token?: string,
-    boardId?: string
+    boardId?: string,
 ) => {
     const url = boardId ? `/api/cards?board_id=${boardId}` : "/api/cards";
     return apiFetch<{ id: string }>(url, {
         method: "POST",
         body: JSON.stringify(payload),
-    }, { token });
+    });
 };
 
 export const updateCard = (
@@ -187,26 +184,26 @@ export const updateCard = (
         due_date?: string | null;
         priority?: Priority;
     },
-    token?: string,
-    boardId?: string
+    boardId?: string,
 ) => {
     const url = boardId ? `/api/cards/${cardId}?board_id=${boardId}` : `/api/cards/${cardId}`;
     return apiFetch(url, {
         method: "PATCH",
         body: JSON.stringify(payload),
-    }, { token });
+    });
 };
 
-export const deleteCard = (cardId: number, token?: string, boardId?: string) => {
+export const deleteCard = (cardId: number, boardId?: string) => {
     const url = boardId ? `/api/cards/${cardId}?board_id=${boardId}` : `/api/cards/${cardId}`;
-    return apiFetch(url, { method: "DELETE" }, { token });
+    return apiFetch(url, { method: "DELETE" });
 };
 
-export const sendChat = (
-    payload: { message: string; history: ChatMessage[]; apply_updates: boolean },
-    token?: string
-) =>
+export const sendChat = (payload: {
+    message: string;
+    history: ChatMessage[];
+    apply_updates: boolean;
+}) =>
     apiFetch<ChatResponse>("/api/chat", {
         method: "POST",
         body: JSON.stringify(payload),
-    }, { token });
+    });

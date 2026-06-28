@@ -99,7 +99,7 @@ def delete_board_by_id(
 
 
 # Legacy endpoint - returns the first board or creates one
-@router.get("/api/board")
+@router.get("/api/board", deprecated=True)
 def get_board(
     username: str = Depends(get_authenticated_user),
     conn: sqlite3.Connection = Depends(get_db),
@@ -304,7 +304,7 @@ def update_card(
     if payload.due_date is not None:
         conn.execute(
             "UPDATE cards SET due_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (payload.due_date if payload.due_date else None, card_id),
+            (payload.due_date, card_id),
         )
     if payload.priority is not None:
         conn.execute(

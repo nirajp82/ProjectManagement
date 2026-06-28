@@ -28,13 +28,24 @@ class _DummyResponse:
 
 def _make_client(tmp_path: Path) -> TestClient:
     os.environ["PM_DB_PATH"] = str(tmp_path / "test.db")
+    os.environ["JWT_SECRET"] = "test-secret-key-for-testing"
     init_db()
     return TestClient(app)
 
 
+def _get_auth_headers(client: TestClient, username: str = "testuser") -> dict:
+    response = client.post(
+        "/api/auth/register",
+        json={"username": username, "password": "testpass123"},
+    )
+    token = response.json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_chat_applies_actions(monkeypatch, tmp_path: Path) -> None:
     client = _make_client(tmp_path)
-    board = client.get("/api/board").json()
+    auth_headers = _get_auth_headers(client)
+    board = client.get("/api/board", headers=auth_headers).json()
     column_id = board["columns"][0]["id"]
 
     response_content = json.dumps(
@@ -58,7 +69,7 @@ def test_chat_applies_actions(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(ai_module.httpx, "post", _mock_post)
 
-    response = client.post("/api/chat", json={"message": "Add a card."})
+    response = client.post("/api/chat", json={"message": "Add a card."}, headers=auth_headers)
     assert response.status_code == 200
 
     payload = response.json()

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.config import check_jwt_secret
 from app.database import init_db
 from app.routes import api_router, static_router
 from app.routes.static import get_static_dir
@@ -10,6 +11,7 @@ from app.routes.static import get_static_dir
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_jwt_secret()
     init_db()
     yield
 

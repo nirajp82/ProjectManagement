@@ -25,6 +25,7 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 RUN uv pip install --system -r /app/backend/requirements.txt
 
 COPY backend /app/backend
+COPY docs /app/docs
 COPY --from=frontend-build /app/frontend/out /app/frontend/out
 
 RUN useradd -m -u 1000 appuser && \

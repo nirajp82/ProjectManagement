@@ -3,6 +3,22 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 
+# Auth models
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=100)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class AuthResponse(BaseModel):
+    token: str
+    username: str
+
+
 class ColumnCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     position: int | None = None

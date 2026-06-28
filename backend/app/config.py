@@ -20,6 +20,18 @@ def get_jwt_secret() -> str:
     """Get the JWT secret from environment or use a generated default."""
     return os.getenv("JWT_SECRET", _DEFAULT_JWT_SECRET)
 
+
+def check_jwt_secret() -> None:
+    """Warn at startup if the JWT secret is shorter than the recommended 32 bytes."""
+    import logging
+    secret = get_jwt_secret()
+    if len(secret.encode()) < 32:
+        logging.warning(
+            "JWT_SECRET is shorter than 32 bytes (%d bytes). "
+            "Set a longer secret in .env for production use.",
+            len(secret.encode()),
+        )
+
 # Database configuration
 DEFAULT_USER = "user"
 DEFAULT_BOARD_TITLE = "My Board"

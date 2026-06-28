@@ -14,6 +14,7 @@ import {
   createCard,
   deleteCard as apiDeleteCard,
   sendChat,
+  setApiToken,
   toBoardData,
   updateCard,
   updateColumn,
@@ -84,6 +85,7 @@ export default function Home() {
   useEffect(() => {
     const storedAuth = getStoredAuth();
     if (storedAuth) {
+      setApiToken(storedAuth.token);
       setAuthToken(storedAuth.token);
       setUsername(storedAuth.username);
       setIsAuthenticated(true);
@@ -97,6 +99,7 @@ export default function Home() {
 
   const handleSessionExpired = useCallback(() => {
     clearStoredAuth();
+    setApiToken(undefined);
     setIsAuthenticated(false);
     setAuthToken(null);
     setUsername("");
@@ -107,7 +110,7 @@ export default function Home() {
   const refreshBoardsList = useCallback(async () => {
     if (!authToken) return;
     try {
-      const response = await listBoards(authToken);
+      const response = await listBoards();
       setBoards(response.boards);
       return response.boards;
     } catch (err) {
@@ -124,7 +127,7 @@ export default function Home() {
     setIsLoading(true);
     setBoardError(null);
     try {
-      const payload = await fetchBoardById(boardId, authToken);
+      const payload = await fetchBoardById(boardId);
       setBoard(toBoardData(payload));
       setCurrentBoardId(boardId);
       setStoredBoardId(boardId);
@@ -165,7 +168,7 @@ export default function Home() {
           }
         } else if (boardsList && boardsList.length === 0) {
           // No boards, create a default one
-          createBoard("My First Board", true, authToken).then((response) => {
+          createBoard("My First Board", true).then((response) => {
             refreshBoardsList().then(() => {
               loadBoard(response.id);
             });
@@ -197,7 +200,7 @@ export default function Home() {
   const handleCreateBoard = async (title: string) => {
     if (!authToken) return;
     try {
-      const response = await createBoard(title, true, authToken);
+      const response = await createBoard(title, true);
       await refreshBoardsList();
       await loadBoard(response.id);
       setChatMessages([]);
@@ -211,7 +214,7 @@ export default function Home() {
   const handleDeleteBoard = async (boardId: string) => {
     if (!authToken) return;
     try {
-      await apiDeleteBoard(boardId, authToken);
+      await apiDeleteBoard(boardId);
       const updatedBoards = await refreshBoardsList();
       if (updatedBoards && updatedBoards.length > 0) {
         // If we deleted the current board, load another one
@@ -222,7 +225,7 @@ export default function Home() {
         }
       } else {
         // No boards left, create a default one
-        const response = await createBoard("My Board", true, authToken);
+        const response = await createBoard("My Board", true);
         await refreshBoardsList();
         await loadBoard(response.id);
       }
@@ -247,6 +250,7 @@ export default function Home() {
     try {
       const response = await login(formUsername, password);
       setStoredAuth(response.token, response.username);
+      setApiToken(response.token);
       setAuthToken(response.token);
       setUsername(response.username);
       setIsAuthenticated(true);
@@ -288,6 +292,7 @@ export default function Home() {
     try {
       const response = await register(formUsername, password);
       setStoredAuth(response.token, response.username);
+      setApiToken(response.token);
       setAuthToken(response.token);
       setUsername(response.username);
       setIsAuthenticated(true);
@@ -304,6 +309,7 @@ export default function Home() {
 
   const handleLogout = () => {
     clearStoredAuth();
+    setApiToken(undefined);
     setIsAuthenticated(false);
     setAuthToken(null);
     setUsername("");
@@ -322,7 +328,7 @@ export default function Home() {
       return;
     }
     try {
-      await updateColumn(columnIdNumber, { title }, authToken || undefined);
+      await updateColumn(columnIdNumber, { title });
     } catch (err) {
       if (process.env.NODE_ENV === "development") console.error(err);
       setBoardError("Unable to save column changes.");
@@ -343,7 +349,6 @@ export default function Home() {
           title,
           details: details || "No details yet.",
         },
-        authToken || undefined,
         currentBoardId || undefined
       );
       refreshBoard();
@@ -360,7 +365,7 @@ export default function Home() {
       return;
     }
     try {
-      await apiDeleteCard(cardIdNumber, authToken || undefined, currentBoardId || undefined);
+      await apiDeleteCard(cardIdNumber, currentBoardId || undefined);
       refreshBoard();
     } catch (err) {
       if (process.env.NODE_ENV === "development") console.error(err);
@@ -390,7 +395,6 @@ export default function Home() {
           column_id: columnIdNumber,
           position: location.index,
         },
-        authToken || undefined,
         currentBoardId || undefined
       );
       refreshBoard();
@@ -409,14 +413,11 @@ export default function Home() {
     setChatMessages((prev) => [...prev, userMessage]);
 
     try {
-      const response = await sendChat(
-        {
-          message,
-          history,
-          apply_updates: true,
-        },
-        authToken || undefined
-      );
+      const response = await sendChat({
+        message,
+        history,
+        apply_updates: true,
+      });
       const assistantMessage: ChatMessage = {
         role: "assistant",
         content: response.response,
@@ -621,12 +622,31 @@ export default function Home() {
         <div className="pointer-events-none absolute left-0 top-0 h-[420px] w-[420px] -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(32,157,215,0.25)_0%,_rgba(32,157,215,0.05)_55%,_transparent_70%)]" />
         <main className="relative mx-auto flex min-h-screen max-w-xl items-center px-6 py-16">
           <section className="w-full rounded-[32px] border border-[var(--stroke)] bg-white/90 p-8 text-center shadow-[var(--shadow)] backdrop-blur">
-            <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
-              Loading your board
-            </h1>
-            <p className="mt-3 text-sm text-[var(--gray-text)]">
-              Fetching the latest updates from the server.
-            </p>
+            {boardError && !isLoading ? (
+              <>
+                <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
+                  Unable to load board
+                </h1>
+                <p className="mt-3 text-sm text-[var(--secondary-purple)]">
+                  {boardError}
+                </p>
+                <button
+                  onClick={() => { setBoardError(null); refreshBoardsList().then((bl) => { if (bl && bl.length > 0) loadBoard(bl[0].id); else if (bl && bl.length === 0) createBoard("My Board", true).then((r) => loadBoard(r.id)); }); }}
+                  className="mt-6 rounded-full bg-[var(--primary-blue)] px-6 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white transition hover:brightness-110"
+                >
+                  Retry
+                </button>
+              </>
+            ) : (
+              <>
+                <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
+                  Loading your board
+                </h1>
+                <p className="mt-3 text-sm text-[var(--gray-text)]">
+                  Fetching the latest updates from the server.
+                </p>
+              </>
+            )}
           </section>
         </main>
       </div>

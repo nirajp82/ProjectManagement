@@ -11,6 +11,7 @@ def connect_db() -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -109,14 +110,6 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_card_labels_label_id ON card_labels(label_id)")
     conn.commit()
     conn.close()
-
-
-def get_db() -> Generator[sqlite3.Connection, None, None]:
-    conn = connect_db()
-    try:
-        yield conn
-    finally:
-        conn.close()
 
 
 def get_or_create_user(conn: sqlite3.Connection, username: str) -> int:
@@ -399,7 +392,7 @@ def update_label(conn: sqlite3.Connection, label_id: int, name: str | None, colo
         conn.execute("UPDATE labels SET name = ? WHERE id = ?", (name, label_id))
     if color is not None:
         conn.execute("UPDATE labels SET color = ? WHERE id = ?", (color, label_id))
-    conn.commit()
+    conn.commit()  # single commit for both updates
 
 
 def delete_label(conn: sqlite3.Connection, label_id: int) -> None:

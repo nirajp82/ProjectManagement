@@ -115,8 +115,7 @@ def build_structured_messages(
         '- delete_card: {"type": "delete_card", "cardId": string}\n'
         "Do not include any extra keys or text.\n\n"
         f"Board columns (authoritative): {column_summary}\n"
-        f"Board summary (authoritative): {board_summary}\n"
-        f"Current board data (JSON):\n{json.dumps(board, indent=2)}"
+        f"Board summary (authoritative): {board_summary}"
     )
     messages_list = [{"role": "system", "content": schema_hint}]
     for item in history:
