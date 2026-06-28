@@ -1,0 +1,230 @@
+{
+    "schemaVersion": "1.0",
+    "db": "sqlite",
+    "notes": "Initial schema for single-board-per-user MVP.",
+    "tables": [
+        {
+            "name": "users",
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "INTEGER",
+                    "primaryKey": true
+                },
+                {
+                    "name": "username",
+                    "type": "TEXT",
+                    "nullable": false
+                },
+                {
+                    "name": "password_hash",
+                    "type": "TEXT",
+                    "nullable": true
+                },
+                {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                },
+                {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            ],
+            "constraints": [
+                {
+                    "type": "unique",
+                    "columns": [
+                        "username"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "boards",
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "INTEGER",
+                    "primaryKey": true
+                },
+                {
+                    "name": "user_id",
+                    "type": "INTEGER",
+                    "nullable": false
+                },
+                {
+                    "name": "title",
+                    "type": "TEXT",
+                    "nullable": false,
+                    "default": "My Board"
+                },
+                {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                },
+                {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            ],
+            "constraints": [
+                {
+                    "type": "foreignKey",
+                    "columns": [
+                        "user_id"
+                    ],
+                    "references": "users(id)"
+                },
+                {
+                    "type": "unique",
+                    "columns": [
+                        "user_id"
+                    ],
+                    "notes": "Enforces one board per user for MVP."
+                }
+            ],
+            "indexes": [
+                {
+                    "name": "idx_boards_user_id",
+                    "columns": [
+                        "user_id"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "columns",
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "INTEGER",
+                    "primaryKey": true
+                },
+                {
+                    "name": "board_id",
+                    "type": "INTEGER",
+                    "nullable": false
+                },
+                {
+                    "name": "title",
+                    "type": "TEXT",
+                    "nullable": false
+                },
+                {
+                    "name": "position",
+                    "type": "INTEGER",
+                    "nullable": false
+                },
+                {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                },
+                {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            ],
+            "constraints": [
+                {
+                    "type": "foreignKey",
+                    "columns": [
+                        "board_id"
+                    ],
+                    "references": "boards(id)"
+                }
+            ],
+            "indexes": [
+                {
+                    "name": "idx_columns_board_id",
+                    "columns": [
+                        "board_id"
+                    ]
+                },
+                {
+                    "name": "idx_columns_board_position",
+                    "columns": [
+                        "board_id",
+                        "position"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "cards",
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "INTEGER",
+                    "primaryKey": true
+                },
+                {
+                    "name": "column_id",
+                    "type": "INTEGER",
+                    "nullable": false
+                },
+                {
+                    "name": "title",
+                    "type": "TEXT",
+                    "nullable": false
+                },
+                {
+                    "name": "details",
+                    "type": "TEXT",
+                    "nullable": false,
+                    "default": ""
+                },
+                {
+                    "name": "position",
+                    "type": "INTEGER",
+                    "nullable": false
+                },
+                {
+                    "name": "archived",
+                    "type": "INTEGER",
+                    "nullable": false,
+                    "default": 0
+                },
+                {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                },
+                {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            ],
+            "constraints": [
+                {
+                    "type": "foreignKey",
+                    "columns": [
+                        "column_id"
+                    ],
+                    "references": "columns(id)"
+                }
+            ],
+            "indexes": [
+                {
+                    "name": "idx_cards_column_id",
+                    "columns": [
+                        "column_id"
+                    ]
+                },
+                {
+                    "name": "idx_cards_column_position",
+                    "columns": [
+                        "column_id",
+                        "position"
+                    ]
+                }
+            ]
+        }
+    ]
+}

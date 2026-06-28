@@ -1,0 +1,122 @@
+{
+    "name": "kanban_ai_response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "reply",
+        "actions"
+    ],
+    "properties": {
+        "reply": {
+            "type": "string",
+            "description": "Natural language response for the user."
+        },
+        "actions": {
+            "type": "array",
+            "description": "Optional board update actions.",
+            "items": {
+                "type": "object",
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "properties": {
+                            "type": {
+                                "const": "create_card"
+                            },
+                            "columnId": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "details": {
+                                "type": "string"
+                            },
+                            "position": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "columnId",
+                            "title"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "properties": {
+                            "type": {
+                                "const": "update_card"
+                            },
+                            "cardId": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "details": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "cardId"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "properties": {
+                            "type": {
+                                "const": "move_card"
+                            },
+                            "cardId": {
+                                "type": "string"
+                            },
+                            "columnId": {
+                                "type": "string"
+                            },
+                            "position": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "cardId",
+                            "columnId"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "properties": {
+                            "type": {
+                                "const": "delete_card"
+                            },
+                            "cardId": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "cardId"
+                        ],
+                        "additionalProperties": false
+                    }
+                ]
+            }
+        }
+    }
+}
