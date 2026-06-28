@@ -25,7 +25,7 @@ def test_live_health() -> None:
 def test_live_root() -> None:
     response = httpx.get(f"{BASE_URL}/", timeout=5)
     assert response.status_code == 200
-    assert "Project Management" in response.text
+    assert "Kanban Studio" in response.text
 
 
 @pytest.mark.skipif(not _can_run_openrouter(), reason="PM_BASE_URL or OPENROUTER_API_KEY not set")
